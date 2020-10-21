@@ -14,11 +14,11 @@ int numPF = 5;	   // Esanciu objektu skaicius (preexisting facilities)
 int numCL = 50;	   // Kandidatu naujiems objektams skaicius (candidate locations)
 int numX = 3;	   // Nauju objektu skaicius
 int iters = 10120; // Iteraciju skaicius
-int threadCount = 1;
+int threadCount = 4;
 
-// double **adjacencyMatrix;	// Gretimumo matrica turinti atstumus tarp tasku (vietoviu)
-double **demandPoints; 		// Geografiniai duomenys
-int *X;				   		// Sprendinys
+double **adjacencyMatrix; // Gretimumo matrica turinti atstumus tarp tasku (vietoviu)
+double **demandPoints;	  // Geografiniai duomenys
+int *X;					  // Sprendinys
 
 //=============================================================================
 
@@ -27,18 +27,26 @@ void loadDemandPoints();
 void randomSolution(int *X);
 double HaversineDistance(double *a, double *b);
 double evaluateSolution(int *X);
-//void calculateAllDistances();
+void calculateAllDistances();
 
 //=============================================================================
 
 int main()
 {
-
+	omp_set_num_threads(threadCount);
 	double ts = getTime(); // Algoritmo vykdymo pradzios laikas
 	double seqT = 0;
 	double parT = 0;
 
 	loadDemandPoints(); // Nuskaitomi duomenys
+
+	double tp = getTime();
+	seqT += tp - ts;
+
+	calculateAllDistances();
+
+	ts = getTime();
+	parT += ts - tp;
 
 	X = new int[numX];			// Sprndinys
 	double u;					// Sprendinio tikslo funkcijos reiksme
@@ -54,7 +62,7 @@ int main()
 		// Generuojam atsitiktini sprendini ir tikrinam ar jis nera geresnis uz geriausia zinoma
 		randomSolution(X);
 
-		double tp = getTime();
+		tp = getTime();
 		seqT += tp - ts;
 
 		u = evaluateSolution(X);
@@ -78,7 +86,11 @@ int main()
 		cout << bestX[i] << " ";
 	cout << "(" << bestU << ")" << endl
 		 << "Nuosekliosios dalies trukme: " << fixed << setprecision(2) << seqT << endl
-		 << "Lygiagrecios dalies trukme: " << fixed << setprecision(2) << parT << endl;
+		 << "Lygiagrecios dalies trukme: " << fixed << setprecision(2) << parT << endl
+		 << "Visa trukme: " << fixed << setprecision(2) << seqT + parT << endl;
+
+	delete adjacencyMatrix;
+	delete demandPoints;
 }
 
 //=============================================================================
@@ -157,14 +169,14 @@ double evaluateSolution(int *X)
 			bestPF = 1e5;
 			for (int j = 0; j < numPF; j++)
 			{
-				d = HaversineDistance(demandPoints[i], demandPoints[j]);
+				d = adjacencyMatrix[i][j];
 				if (d < bestPF)
 					bestPF = d;
 			}
 			bestX = 1e5;
 			for (int j = 0; j < numX; j++)
 			{
-				d = HaversineDistance(demandPoints[i], demandPoints[X[j]]);
+				d = adjacencyMatrix[i][X[j]];
 				if (d < bestX)
 					bestX = d;
 			}
@@ -181,6 +193,16 @@ double evaluateSolution(int *X)
 
 //=============================================================================
 
-// void calculateAllDistances() {
-// 	adjacencyMatrix = new double[numDP][numDP];
-// }
+void calculateAllDistances()
+{
+	adjacencyMatrix = new double *[numDP];
+#pragma omp parallel for
+	for (int i = 0; i < numDP; i++)
+	{
+		adjacencyMatrix[i] = new double[numDP];
+		for (int j = 0; j < numDP; j++)
+		{
+			adjacencyMatrix[i][j] = HaversineDistance(demandPoints[i], demandPoints[j]);
+		}
+	}
+}
