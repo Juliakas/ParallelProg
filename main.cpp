@@ -4,17 +4,21 @@
 #include <math.h>
 #include <time.h>
 #include <sys/time.h>
+#include <omp.h>
+#include <iomanip>
 
 using namespace std;
 
 int numDP = 10000; // Vietoviu skaicius (demand points, max 10000)
 int numPF = 5;	   // Esanciu objektu skaicius (preexisting facilities)
 int numCL = 50;	   // Kandidatu naujiems objektams skaicius (candidate locations)
-int numX  = 3;	   // Nauju objektu skaicius
+int numX = 3;	   // Nauju objektu skaicius
 int iters = 10120; // Iteraciju skaicius
+int threadCount = 1;
 
-double **demandPoints; // Geografiniai duomenys
-int *X;				   // Sprendinys
+// double **adjacencyMatrix;	// Gretimumo matrica turinti atstumus tarp tasku (vietoviu)
+double **demandPoints; 		// Geografiniai duomenys
+int *X;				   		// Sprendinys
 
 //=============================================================================
 
@@ -23,6 +27,7 @@ void loadDemandPoints();
 void randomSolution(int *X);
 double HaversineDistance(double *a, double *b);
 double evaluateSolution(int *X);
+//void calculateAllDistances();
 
 //=============================================================================
 
@@ -30,6 +35,8 @@ int main()
 {
 
 	double ts = getTime(); // Algoritmo vykdymo pradzios laikas
+	double seqT = 0;
+	double parT = 0;
 
 	loadDemandPoints(); // Nuskaitomi duomenys
 
@@ -40,11 +47,21 @@ int main()
 
 	//----- Pagrindinis ciklas ------------------------------------------------
 
+	omp_set_num_threads(threadCount);
+
 	for (int iter = 0; iter < iters; iter++)
 	{
 		// Generuojam atsitiktini sprendini ir tikrinam ar jis nera geresnis uz geriausia zinoma
 		randomSolution(X);
+
+		double tp = getTime();
+		seqT += tp - ts;
+
 		u = evaluateSolution(X);
+
+		ts = getTime();
+		parT += ts - tp;
+
 		if (u > bestU)
 		{ // Jei geresnis, tai issaugojam kaip geriausia zinoma
 			bestU = u;
@@ -54,13 +71,14 @@ int main()
 	}
 	//----- Rezultatu spausdinimas --------------------------------------------
 
-	double tf = getTime(); // Skaiciavimu pabaigos laikas
+	seqT += getTime() - ts;
 
 	cout << "Geriausias sprendinys: ";
 	for (int i = 0; i < numX; i++)
 		cout << bestX[i] << " ";
 	cout << "(" << bestU << ")" << endl
-		 << "Skaiciavimo trukme: " << tf - ts << endl;
+		 << "Nuosekliosios dalies trukme: " << fixed << setprecision(2) << seqT << endl
+		 << "Lygiagrecios dalies trukme: " << fixed << setprecision(2) << parT << endl;
 }
 
 //=============================================================================
@@ -128,29 +146,41 @@ void randomSolution(int *X)
 double evaluateSolution(int *X)
 {
 	double U = 0;
-	int bestPF;
-	int bestX;
-	double d;
-	for (int i = 0; i < numDP; i++)
+#pragma omp parallel
 	{
-		bestPF = 1e5;
-		for (int j = 0; j < numPF; j++)
+		int bestPF;
+		int bestX;
+		double d;
+#pragma omp for
+		for (int i = 0; i < numDP; i++)
 		{
-			d = HaversineDistance(demandPoints[i], demandPoints[j]);
-			if (d < bestPF)
-				bestPF = d;
+			bestPF = 1e5;
+			for (int j = 0; j < numPF; j++)
+			{
+				d = HaversineDistance(demandPoints[i], demandPoints[j]);
+				if (d < bestPF)
+					bestPF = d;
+			}
+			bestX = 1e5;
+			for (int j = 0; j < numX; j++)
+			{
+				d = HaversineDistance(demandPoints[i], demandPoints[X[j]]);
+				if (d < bestX)
+					bestX = d;
+			}
+			if (bestX < bestPF)
+#pragma omp atomic
+				U += demandPoints[i][2];
+			else if (bestX == bestPF)
+#pragma omp atomic
+				U += 0.3 * demandPoints[i][2];
 		}
-		bestX = 1e5;
-		for (int j = 0; j < numX; j++)
-		{
-			d = HaversineDistance(demandPoints[i], demandPoints[X[j]]);
-			if (d < bestX)
-				bestX = d;
-		}
-		if (bestX < bestPF)
-			U += demandPoints[i][2];
-		else if (bestX == bestPF)
-			U += 0.3 * demandPoints[i][2];
 	}
 	return U;
 }
+
+//=============================================================================
+
+// void calculateAllDistances() {
+// 	adjacencyMatrix = new double[numDP][numDP];
+// }
