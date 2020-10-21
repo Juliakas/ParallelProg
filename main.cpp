@@ -10,8 +10,8 @@ using namespace std;
 int numDP = 10000; // Vietoviu skaicius (demand points, max 10000)
 int numPF = 5;	   // Esanciu objektu skaicius (preexisting facilities)
 int numCL = 50;	   // Kandidatu naujiems objektams skaicius (candidate locations)
-int numX = 3;	   // Nauju objektu skaicius
-int iters = 12144; // Iteraciju skaicius
+int numX  = 3;	   // Nauju objektu skaicius
+int iters = 10120; // Iteraciju skaicius
 
 double **demandPoints; // Geografiniai duomenys
 int *X;				   // Sprendinys
