@@ -6,6 +6,7 @@
 #include <sys/time.h>
 #include <omp.h>
 #include <iomanip>
+#include <fstream>
 
 using namespace std;
 
@@ -28,6 +29,7 @@ void randomSolution(int *X);
 double HaversineDistance(double *a, double *b);
 double evaluateSolution(int *X);
 void calculateAllDistances();
+void loadAllDistances();
 
 //=============================================================================
 
@@ -40,13 +42,12 @@ int main()
 
 	loadDemandPoints(); // Nuskaitomi duomenys
 
-	double tp = getTime();
-	seqT += tp - ts;
-
-	calculateAllDistances();
-
-	ts = getTime();
-	parT += ts - tp;
+	ifstream f("adjMatrix.dat");
+	if (!f.good())
+	{
+		calculateAllDistances();
+	}
+	loadAllDistances();
 
 	X = new int[numX];			// Sprndinys
 	double u;					// Sprendinio tikslo funkcijos reiksme
@@ -55,14 +56,14 @@ int main()
 
 	//----- Pagrindinis ciklas ------------------------------------------------
 
-	omp_set_num_threads(threadCount);
+	// omp_set_num_threads(threadCount);
 
 	for (int iter = 0; iter < iters; iter++)
 	{
 		// Generuojam atsitiktini sprendini ir tikrinam ar jis nera geresnis uz geriausia zinoma
 		randomSolution(X);
 
-		tp = getTime();
+		double tp = getTime();
 		seqT += tp - ts;
 
 		u = evaluateSolution(X);
@@ -195,14 +196,27 @@ double evaluateSolution(int *X)
 
 void calculateAllDistances()
 {
+	ofstream f("adjMatrix.dat");
+	for (int i = 0; i < numDP; i++)
+	{
+		for (int j = 0; j < numDP; j++)
+		{
+			f << HaversineDistance(demandPoints[i], demandPoints[j]) << " ";
+		}
+		f << endl;
+	}
+}
+
+void loadAllDistances()
+{
+	ifstream f("adjMatrix.dat");
 	adjacencyMatrix = new double *[numDP];
-#pragma omp parallel for
 	for (int i = 0; i < numDP; i++)
 	{
 		adjacencyMatrix[i] = new double[numDP];
 		for (int j = 0; j < numDP; j++)
 		{
-			adjacencyMatrix[i][j] = HaversineDistance(demandPoints[i], demandPoints[j]);
+			f >> adjacencyMatrix[i][j];
 		}
 	}
 }
