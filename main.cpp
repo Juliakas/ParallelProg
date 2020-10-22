@@ -14,7 +14,7 @@ int numPF = 5;	   // Esanciu objektu skaicius (preexisting facilities)
 int numCL = 50;	   // Kandidatu naujiems objektams skaicius (candidate locations)
 int numX = 3;	   // Nauju objektu skaicius
 int iters = 10120; // Iteraciju skaicius
-int threadCount = 4;
+int threadCount = 2;
 
 double **adjacencyMatrix; // Gretimumo matrica turinti atstumus tarp tasku (vietoviu)
 double **demandPoints;	  // Geografiniai duomenys
@@ -158,12 +158,12 @@ void randomSolution(int *X)
 double evaluateSolution(int *X)
 {
 	double U = 0;
-#pragma omp parallel
+#pragma omp parallel reduction (+:U)
 	{
 		int bestPF;
 		int bestX;
 		double d;
-#pragma omp for
+#pragma omp for schedule (dynamic)
 		for (int i = 0; i < numDP; i++)
 		{
 			bestPF = 1e5;
@@ -181,10 +181,8 @@ double evaluateSolution(int *X)
 					bestX = d;
 			}
 			if (bestX < bestPF)
-#pragma omp atomic
 				U += demandPoints[i][2];
 			else if (bestX == bestPF)
-#pragma omp atomic
 				U += 0.3 * demandPoints[i][2];
 		}
 	}
@@ -196,7 +194,7 @@ double evaluateSolution(int *X)
 void calculateAllDistances()
 {
 	adjacencyMatrix = new double *[numDP];
-#pragma omp parallel for
+#pragma omp parallel for schedule (dynamic)
 	for (int i = 0; i < numDP; i++)
 	{
 		adjacencyMatrix[i] = new double[numDP];
